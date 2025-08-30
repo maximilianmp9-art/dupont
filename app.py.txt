@@ -1,0 +1,81 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+
+st.set_page_config(page_title="Modelo DuPont", layout="wide")
+
+st.title("Modelo DuPont - Análisis de Rentabilidad Empresarial")
+
+st.markdown("""
+Carga una base de datos con los siguientes campos:  
+- **Periodo**  
+- **Ventas Netas**  
+- **Utilidad Neta**  
+- **Activos Totales**  
+- **Capital Contable**
+
+El modelo calculará automáticamente los siguientes indicadores:
+- Margen Neto (%)
+- Rotación de Activos (veces)
+- Apalancamiento (veces)
+- ROE (%)
+- ROA (%)
+- Pay Back Capital (veces)
+- Pay Back Activos (veces)
+""")
+
+# --- Cargar archivo ---
+uploaded_file = st.file_uploader("📁 Carga tu archivo Excel o CSV", type=["xlsx", "xls", "csv"])
+
+if uploaded_file is not None:
+    if uploaded_file.name.endswith('.csv'):
+        df = pd.read_csv(uploaded_file)
+    else:
+        df = pd.read_excel(uploaded_file)
+
+    df = df.set_index('Periodo').transpose()
+
+    # --- Cálculos ---
+    ventas = df.loc['Ventas Netas']
+    utilidad = df.loc['Utilidad Neta']
+    activos = df.loc['Activos Totales']
+    capital = df.loc['Capital Contable']
+
+    margen = (utilidad / ventas * 100).round(1)
+    rotacion = (ventas / activos).round(1)
+    apalancamiento = (activos / capital).round(1)
+    roe = (margen / 100 * rotacion * apalancamiento * 100).round(1)
+    roa = (rotacion * apalancamiento * 100).round(1)
+    payback_capital = (1 / (roe / 100)).replace([np.inf, -np.inf], np.nan).round(1)
+    payback_activos = (1 / (roa / 100)).replace([np.inf, -np.inf], np.nan).round(1)
+
+    # --- Crear reporte ---
+    reporte = pd.DataFrame({
+        "Ventas Netas ($)": ventas,
+        "Utilidad Neta ($)": utilidad,
+        "Activos Totales ($)": activos,
+        "Capital Contable ($)": capital,
+        "Margen Neto (%)": margen,
+        "Rotación (veces)": rotacion,
+        "Apalancamiento (veces)": apalancamiento,
+        "ROE (%)": roe,
+        "ROA (%)": roa,
+        "Pay Back Capital (veces)": payback_capital,
+        "Pay Back Activos (veces)": payback_activos,
+    })
+
+    # Reorganiza el reporte: Columnas = Periodos, Filas = Conceptos
+    reporte_final = reporte.transpose()
+
+    st.success("✅ Reporte generado correctamente")
+    st.dataframe(reporte_final.style.format(precision=1, thousands=","))
+
+    # --- Descargar como Excel ---
+    st.download_button(
+        label="⬇️ Descargar reporte en Excel",
+        data=reporte_final.to_excel(index=True, engine='openpyxl'),
+        file_name="reporte_dupont.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+else:
+    st.info("Por favor carga un archivo para iniciar el análisis.")
